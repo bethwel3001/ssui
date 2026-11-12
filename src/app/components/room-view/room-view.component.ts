@@ -2,6 +2,7 @@ import { Component, EventEmitter, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RoomStoreService } from '../../services/room-store.service';
 import { QnaStoreService } from '../../services/qna-store.service';
+import { WebSocketService } from '../../services/websocket.service';
 import { FilterBarComponent } from '../filter-bar/filter-bar.component';
 import { QuestionCardComponent } from '../question-card/question-card.component';
 import { PollWidgetComponent } from '../poll-widget/poll-widget.component';
@@ -121,28 +122,36 @@ import { PollWidgetComponent } from '../poll-widget/poll-widget.component';
         <!-- Filter & Search Controls -->
         <app-filter-bar></app-filter-bar>
 
-        <!-- Question List -->
-        <section class="questions-stream">
-          @for (q of qnaStore.filteredQuestions(); track q.id) {
-            <app-question-card [question]="q"></app-question-card>
-          } @empty {
-            <div class="empty-room-state">
-              <p class="empty-title">No questions yet</p>
-              <p class="empty-sub">
+        <!-- Loading Skeletons when fetching from backend -->
+        @if (qnaStore.isLoadingQuestions()) {
+          <div class="loading-questions-wrap">
+            <div class="question-skeleton"></div>
+            <div class="question-skeleton"></div>
+          </div>
+        } @else {
+          <!-- Question List -->
+          <section class="questions-stream">
+            @for (q of qnaStore.filteredQuestions(); track q.id) {
+              <app-question-card [question]="q"></app-question-card>
+            } @empty {
+              <div class="empty-room-state">
+                <p class="empty-title">No questions yet</p>
+                <p class="empty-sub">
+                  @if (room.isQaOpen) {
+                    Be the first attendee to post a question in this room!
+                  } @else {
+                    No questions currently submitted in this room.
+                  }
+                </p>
                 @if (room.isQaOpen) {
-                  Be the first to post a question in this room!
-                } @else {
-                  No questions currently in this room.
+                  <button type="button" class="btn-ask-empty" (click)="openAskModal.emit()">
+                    Ask First Question
+                  </button>
                 }
-              </p>
-              @if (room.isQaOpen) {
-                <button type="button" class="btn-ask-empty" (click)="openAskModal.emit()">
-                  Ask First Question
-                </button>
-              }
-            </div>
-          }
-        </section>
+              </div>
+            }
+          </section>
+        }
       </div>
     }
   `,
@@ -394,6 +403,20 @@ import { PollWidgetComponent } from '../poll-widget/poll-widget.component';
       color: var(--text-muted);
     }
 
+    .loading-questions-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .question-skeleton {
+      height: 90px;
+      background: linear-gradient(90deg, #F4F4F5 25%, #E4E4E7 50%, #F4F4F5 75%);
+      background-size: 200% 100%;
+      animation: skeletonPulse 1.5s infinite;
+      border-radius: var(--radius-lg);
+    }
+
     .empty-room-state {
       background-color: var(--bg-surface);
       border: 1px dashed var(--border-subtle);
@@ -452,6 +475,7 @@ import { PollWidgetComponent } from '../poll-widget/poll-widget.component';
 export class RoomViewComponent {
   roomStore = inject(RoomStoreService);
   qnaStore = inject(QnaStoreService);
+  wsService = inject(WebSocketService);
 
   @Output() openAskModal = new EventEmitter<void>();
 }

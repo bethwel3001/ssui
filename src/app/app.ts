@@ -4,6 +4,7 @@ import { NavbarComponent } from './components/navbar/navbar.component';
 import { HomeViewComponent } from './components/home-view/home-view.component';
 import { RoomViewComponent } from './components/room-view/room-view.component';
 import { FooterComponent } from './components/footer/footer.component';
+import { ToastComponent } from './components/toast/toast.component';
 import { AskModalComponent } from './components/ask-modal/ask-modal.component';
 import { CreateRoomModalComponent } from './components/create-room-modal/create-room-modal.component';
 import { AwsSettingsModalComponent } from './components/aws-settings-modal/aws-settings-modal.component';
@@ -18,6 +19,7 @@ import { RoomStoreService } from './services/room-store.service';
     HomeViewComponent,
     RoomViewComponent,
     FooterComponent,
+    ToastComponent,
     AskModalComponent,
     CreateRoomModalComponent,
     AwsSettingsModalComponent

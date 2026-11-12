@@ -2,6 +2,7 @@ import { Component, EventEmitter, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RoomStoreService } from '../../services/room-store.service';
+import { WebSocketService } from '../../services/websocket.service';
 import { Room } from '../../models/room.model';
 
 @Component({
@@ -10,7 +11,7 @@ import { Room } from '../../models/room.model';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="home-container animate-view">
-      <!-- Full-Height Hero Section (Occupies Hero Completely & Elegantly) -->
+      <!-- Full-Height Hero Section -->
       <section class="hero-section">
         <div class="hero-content">
           <div class="hero-badge">Real-Time Q&A & Community Boards</div>
@@ -33,7 +34,7 @@ import { Room } from '../../models/room.model';
                 type="text" 
                 [(ngModel)]="inputCode" 
                 name="inputCode"
-                placeholder="Enter room code (e.g. tech-meetup)..." 
+                placeholder="Enter room code..." 
                 class="cta-code-input" />
               <button type="submit" class="btn-join" [disabled]="!inputCode.trim()">
                 Join Room
@@ -53,7 +54,7 @@ import { Room } from '../../models/room.model';
           </div>
         </div>
 
-        <!-- Scroll Indicator (Prompts user to discover below the fold) -->
+        <!-- Scroll Indicator -->
         <a href="#how-it-works" class="hero-scroll-prompt">
           <span>Scroll to explore</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -63,7 +64,7 @@ import { Room } from '../../models/room.model';
         </a>
       </section>
 
-      <!-- 3-Step Instruction Section (Comfortably Below the Hero Fold) -->
+      <!-- 3-Step Instruction Section -->
       <section id="how-it-works" class="instructions-section">
         <div class="section-header">
           <h2 class="section-title">How it works</h2>
@@ -137,37 +138,76 @@ import { Room } from '../../models/room.model';
           </div>
         </div>
 
-        <div class="rooms-grid">
-          @for (room of filteredRooms(); track room.code) {
-            <div class="room-card" (click)="roomStore.joinRoom(room.code)">
-              <div class="room-card-header">
-                <span class="room-code-tag">#{{ room.code }}</span>
-                <span class="status-pill" [class.open]="room.isQaOpen" [class.paused]="!room.isQaOpen">
-                  <span class="dot"></span>
-                  {{ room.isQaOpen ? 'Q&A Open' : 'Q&A Paused' }}
-                </span>
-              </div>
-
-              <h3 class="room-name">{{ room.name }}</h3>
-              <p class="room-desc">{{ room.description }}</p>
-
-              <div class="room-footer">
-                <div class="host-info">
-                  <span class="host-avatar">{{ room.host.charAt(0) }}</span>
-                  <span class="host-name">Hosted by {{ room.host }}</span>
-                </div>
-
-                <div class="btn-enter-room">
-                  <span>Enter Room</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                    <polyline points="12 5 19 12 12 19"></polyline>
-                  </svg>
-                </div>
-              </div>
+        <!-- Connection Notice Banner if disconnected -->
+        @if (!wsService.isConnected()) {
+          <div class="backend-notice-banner">
+            <div class="notice-left">
+              <span class="notice-badge">Backend Ready</span>
+              <span class="notice-text">
+                Connect your AWS API Gateway WebSocket URL to sync rooms live from DynamoDB.
+              </span>
             </div>
-          }
-        </div>
+            <button type="button" class="btn-notice" (click)="openSettings.emit()">
+              Configure WebSocket
+            </button>
+          </div>
+        }
+
+        <!-- Loading Skeletons -->
+        @if (roomStore.isLoadingRooms()) {
+          <div class="rooms-grid">
+            <div class="room-skeleton-card"></div>
+            <div class="room-skeleton-card"></div>
+          </div>
+        } @else {
+          <!-- Real Rooms Grid fetched from backend -->
+          <div class="rooms-grid">
+            @for (room of filteredRooms(); track room.code) {
+              <div class="room-card" (click)="roomStore.joinRoom(room.code)">
+                <div class="room-card-header">
+                  <span class="room-code-tag">#{{ room.code }}</span>
+                  <span class="status-pill" [class.open]="room.isQaOpen" [class.paused]="!room.isQaOpen">
+                    <span class="dot"></span>
+                    {{ room.isQaOpen ? 'Q&A Open' : 'Q&A Paused' }}
+                  </span>
+                </div>
+
+                <h3 class="room-name">{{ room.name }}</h3>
+                <p class="room-desc">{{ room.description }}</p>
+
+                <div class="room-footer">
+                  <div class="host-info">
+                    <span class="host-avatar">{{ room.host.charAt(0) }}</span>
+                    <span class="host-name">Hosted by {{ room.host }}</span>
+                  </div>
+
+                  <div class="btn-enter-room">
+                    <span>Enter Room</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                      <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            } @empty {
+              <!-- Empty state when no rooms are returned from backend -->
+              <div class="empty-rooms-box">
+                <p class="empty-rooms-title">No rooms found</p>
+                <p class="empty-rooms-desc">
+                  @if (wsService.isConnected()) {
+                    There are currently no active rooms on the server. Create the first room to get started!
+                  } @else {
+                    Configure your AWS WebSocket endpoint to fetch live rooms, or launch a new room space.
+                  }
+                </p>
+                <button type="button" class="btn-create-empty" (click)="openCreateModal.emit()">
+                  + Create First Room
+                </button>
+              </div>
+            }
+          </div>
+        }
       </section>
     </div>
   `,
@@ -178,7 +218,7 @@ import { Room } from '../../models/room.model';
       padding: 0 24px 80px 24px;
     }
 
-    /* Full-Height Hero Section */
+    /* Hero */
     .hero-section {
       min-height: calc(100vh - 84px);
       display: flex;
@@ -317,7 +357,6 @@ import { Room } from '../../models/room.model';
       }
     }
 
-    /* Scroll Prompt at bottom of hero */
     .hero-scroll-prompt {
       display: inline-flex;
       align-items: center;
@@ -334,7 +373,7 @@ import { Room } from '../../models/room.model';
       }
     }
 
-    /* Instructions Section (Below the fold) */
+    /* Instructions Section */
     .instructions-section {
       padding: 80px 0 50px 0;
     }
@@ -437,10 +476,71 @@ import { Room } from '../../models/room.model';
       }
     }
 
+    /* Notice Banner */
+    .backend-notice-banner {
+      background: var(--bg-surface);
+      border: 1px dashed var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .notice-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .notice-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-black);
+      background: var(--bg-subtle);
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    .notice-text {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .btn-notice {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--accent-black);
+      color: white;
+
+      &:hover {
+        background: var(--accent-black-hover);
+      }
+    }
+
     .rooms-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 20px;
+    }
+
+    .room-skeleton-card {
+      height: 180px;
+      background: linear-gradient(90deg, #F4F4F5 25%, #E4E4E7 50%, #F4F4F5 75%);
+      background-size: 200% 100%;
+      animation: skeletonPulse 1.5s infinite;
+      border-radius: var(--radius-lg);
+    }
+
+    @keyframes skeletonPulse {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
     }
 
     .room-card {
@@ -568,6 +668,46 @@ import { Room } from '../../models/room.model';
       transform: translateX(2px);
     }
 
+    .empty-rooms-box {
+      grid-column: span 2;
+      background: var(--bg-surface);
+      border: 1px dashed var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 48px 24px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .empty-rooms-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .empty-rooms-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 440px;
+      line-height: 1.5;
+    }
+
+    .btn-create-empty {
+      margin-top: 10px;
+      padding: 9px 20px;
+      border-radius: var(--radius-full);
+      background: var(--accent-black);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+
+      &:hover {
+        background: var(--accent-black-hover);
+      }
+    }
+
     @media (max-width: 960px) {
       .steps-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -577,6 +717,9 @@ import { Room } from '../../models/room.model';
       }
       .rooms-grid {
         grid-template-columns: 1fr;
+      }
+      .empty-rooms-box {
+        grid-column: span 1;
       }
     }
 
@@ -617,8 +760,10 @@ import { Room } from '../../models/room.model';
 })
 export class HomeViewComponent {
   roomStore = inject(RoomStoreService);
+  wsService = inject(WebSocketService);
 
   @Output() openCreateModal = new EventEmitter<void>();
+  @Output() openSettings = new EventEmitter<void>();
 
   inputCode = '';
   selectedCategory = signal<'All' | 'Tech' | 'Product' | 'Community'>('All');

@@ -1,108 +1,80 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Room } from '../models/room.model';
 import { WebSocketService } from './websocket.service';
-
-const INITIAL_ROOMS: Room[] = [
-  {
-    code: 'tech-meetup',
-    name: 'Tech Meetup Nairobi',
-    description: 'Live Q&A on modern web architectures, real-time apps, and developer workflows.',
-    host: 'Bethwel',
-    isQaOpen: true,
-    activeCount: 42,
-    createdAt: Date.now() - 1000 * 60 * 60 * 2,
-    category: 'Tech'
-  },
-  {
-    code: 'product-ama',
-    name: 'Creator Tools Product AMA',
-    description: 'Ask anything about upcoming feature drops, roadmap priorities, and feedback.',
-    host: 'Sarah Jenkins',
-    isQaOpen: true,
-    activeCount: 29,
-    createdAt: Date.now() - 1000 * 60 * 90,
-    category: 'Product'
-  },
-  {
-    code: 'angular-signals',
-    name: 'Angular 21 & Signals Open Floor',
-    description: 'Deep dive into reactive primitives, zoneless change detection, and state management.',
-    host: 'Marcus Chen',
-    isQaOpen: false, // Closed / Paused demo
-    activeCount: 18,
-    createdAt: Date.now() - 1000 * 60 * 150,
-    category: 'Tech'
-  },
-  {
-    code: 'open-mic',
-    name: 'Community Open Floor',
-    description: 'Open discussion space for community members to pitch ideas and ask questions.',
-    host: 'Elena Rostova',
-    isQaOpen: true,
-    activeCount: 35,
-    createdAt: Date.now() - 1000 * 60 * 200,
-    category: 'Community'
-  }
-];
+import { ToastService } from './toast.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class RoomStoreService {
-  readonly rooms = signal<Room[]>(INITIAL_ROOMS);
+  private wsService = inject(WebSocketService);
+  private toastService = inject(ToastService);
+
+  // Real backend rooms (Zero hardcoded fake data)
+  readonly rooms = signal<Room[]>([]);
   readonly activeRoom = signal<Room | null>(null);
   readonly isCreatorMode = signal<boolean>(false);
+  readonly isLoadingRooms = signal<boolean>(false);
+  readonly roomError = signal<string | null>(null);
 
   // Active view: 'home' | 'room'
   readonly currentView = computed<'home' | 'room'>(() => {
     return this.activeRoom() ? 'room' : 'home';
   });
 
-  constructor(private wsService: WebSocketService) {
-    this.wsService.messages$.subscribe(msg => {
-      if (msg.action === 'toggle_qa') {
-        const { roomCode, isOpen } = msg.payload || {};
-        if (roomCode) {
-          this.rooms.update(list =>
-            list.map(r => r.code === roomCode ? { ...r, isQaOpen: isOpen } : r)
-          );
-          if (this.activeRoom()?.code === roomCode) {
-            this.activeRoom.update(r => r ? { ...r, isQaOpen: isOpen } : null);
-          }
-        }
-      }
-    });
+  constructor() {
+    this.wsService.messages$.subscribe(msg => this.handleMessage(msg));
+
+    // When connection opens or URL changes, fetch rooms from backend
+    if (this.wsService.isConnected()) {
+      this.fetchRooms();
+    }
+  }
+
+  fetchRooms() {
+    this.isLoadingRooms.set(true);
+    this.roomError.set(null);
+
+    const sent = this.wsService.send('list_rooms', {});
+    if (!sent) {
+      this.isLoadingRooms.set(false);
+      this.roomError.set('No active connection to backend.');
+    }
   }
 
   joinRoom(code: string): boolean {
     const clean = code.trim().toLowerCase().replace(/^#/, '');
     if (!clean) return false;
 
+    // Check if room exists in current state or request from backend
     const existing = this.rooms().find(r => r.code.toLowerCase() === clean);
     if (existing) {
       this.activeRoom.set(existing);
-      this.isCreatorMode.set(existing.host === 'Bethwel'); // Creator if matching demo user
-      return true;
-    } else {
-      // Auto-create room if entering an unlisted code (like Slido / Mentimeter)
-      const newRoom: Room = {
-        code: clean,
-        name: clean.charAt(0).toUpperCase() + clean.slice(1) + ' Q&A Space',
-        description: 'Instant live Q&A room created by code ' + clean,
-        host: 'Room Creator',
-        isQaOpen: true,
-        activeCount: 1,
-        createdAt: Date.now(),
-        category: 'General'
-      };
-      this.rooms.update(prev => [newRoom, ...prev]);
-      this.activeRoom.set(newRoom);
-      this.isCreatorMode.set(true);
+      // Request active room questions & poll sync
+      this.wsService.send('sync_state', { roomCode: existing.code });
       return true;
     }
+
+    // If not in memory yet, send sync_state to backend to see if room exists on DynamoDB
+    this.activeRoom.set({
+      code: clean,
+      name: clean.charAt(0).toUpperCase() + clean.slice(1),
+      description: 'Loading room data from backend...',
+      host: 'Host',
+      isQaOpen: true,
+      activeCount: 1,
+      createdAt: Date.now(),
+      category: 'General'
+    });
+
+    const sent = this.wsService.send('sync_state', { roomCode: clean });
+    if (!sent) {
+      this.toastService.error(`Could not join #${clean}. Check backend connection.`);
+    }
+    return true;
   }
 
-  createRoom(name: string, customCode: string, host: string, description: string): Room {
+  createRoom(name: string, customCode: string, host: string, description: string) {
     const cleanCode = (customCode.trim() || name.trim())
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -110,8 +82,8 @@ export class RoomStoreService {
 
     const newRoom: Room = {
       code: cleanCode,
-      name: name.trim() || 'Live Q&A Session',
-      description: description.trim() || 'Real-time discussion room',
+      name: name.trim(),
+      description: description.trim() || 'Live Q&A space',
       host: host.trim() || 'Host',
       isQaOpen: true,
       activeCount: 1,
@@ -119,37 +91,79 @@ export class RoomStoreService {
       category: 'General'
     };
 
-    this.rooms.update(prev => [newRoom, ...prev.filter(r => r.code !== newRoom.code)]);
-    this.activeRoom.set(newRoom);
-    this.isCreatorMode.set(true); // Creator of this new room!
-    return newRoom;
+    const sent = this.wsService.send('create_room', newRoom);
+    if (sent) {
+      // Optimistically open room for creator
+      this.rooms.update(prev => [newRoom, ...prev.filter(r => r.code !== newRoom.code)]);
+      this.activeRoom.set(newRoom);
+      this.isCreatorMode.set(true);
+      this.toastService.success(`Room #${newRoom.code} created successfully.`);
+    }
   }
 
   toggleQa(roomCode: string) {
-    let nextState = false;
-    this.rooms.update(list =>
-      list.map(r => {
-        if (r.code === roomCode) {
-          nextState = !r.isQaOpen;
-          return { ...r, isQaOpen: nextState };
-        }
-        return r;
-      })
-    );
+    const room = this.activeRoom();
+    if (!room) return;
 
-    if (this.activeRoom()?.code === roomCode) {
+    const nextState = !room.isQaOpen;
+    const sent = this.wsService.send('toggle_qa', { roomCode, isOpen: nextState });
+
+    if (sent) {
+      this.rooms.update(list =>
+        list.map(r => r.code === roomCode ? { ...r, isQaOpen: nextState } : r)
+      );
       this.activeRoom.update(r => r ? { ...r, isQaOpen: nextState } : null);
+      this.toastService.info(`Q&A is now ${nextState ? 'open for questions' : 'paused by host'}.`);
     }
-
-    this.wsService.send('toggle_qa', { roomCode, isOpen: nextState });
-  }
-
-  toggleCreatorMode() {
-    this.isCreatorMode.update(val => !val);
   }
 
   leaveRoom() {
     this.activeRoom.set(null);
     this.isCreatorMode.set(false);
+  }
+
+  private handleMessage(msg: any) {
+    switch (msg.action) {
+      case 'list_rooms': {
+        this.isLoadingRooms.set(false);
+        if (Array.isArray(msg.payload?.rooms)) {
+          this.rooms.set(msg.payload.rooms);
+          this.roomError.set(null);
+        }
+        break;
+      }
+      case 'create_room': {
+        const room = msg.payload as Room;
+        if (room && room.code) {
+          this.rooms.update(list => [room, ...list.filter(r => r.code !== room.code)]);
+        }
+        break;
+      }
+      case 'toggle_qa': {
+        const { roomCode, isOpen } = msg.payload || {};
+        if (roomCode) {
+          this.rooms.update(list =>
+            list.map(r => r.code === roomCode ? { ...r, isQaOpen: isOpen } : r)
+          );
+          if (this.activeRoom()?.code === roomCode) {
+            this.activeRoom.update(r => r ? { ...r, isQaOpen: isOpen } : null);
+            this.toastService.info(`Host ${isOpen ? 'opened' : 'paused'} Q&A submissions.`);
+          }
+        }
+        break;
+      }
+      case 'error': {
+        this.isLoadingRooms.set(false);
+        const errMessage = msg.payload?.message || 'Backend returned an error.';
+        this.roomError.set(errMessage);
+        this.toastService.error(errMessage);
+        break;
+      }
+      case 'success': {
+        const successMsg = msg.payload?.message || 'Operation succeeded.';
+        this.toastService.success(successMsg);
+        break;
+      }
+    }
   }
 }

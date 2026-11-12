@@ -31,7 +31,20 @@ export type QuestionSort = 'upvotes' | 'newest' | 'oldest';
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 
 export interface WebSocketMessage<T = any> {
-  action: 'send_question' | 'upvote_question' | 'mark_answered' | 'vote_poll' | 'broadcast' | 'sync_state' | 'toggle_qa' | 'ping';
+  action: 
+    | 'send_question' 
+    | 'upvote_question' 
+    | 'mark_answered' 
+    | 'delete_question'
+    | 'vote_poll' 
+    | 'broadcast' 
+    | 'sync_state' 
+    | 'toggle_qa' 
+    | 'list_rooms' 
+    | 'create_room' 
+    | 'error' 
+    | 'success'
+    | 'ping';
   payload?: T;
   timestamp?: number;
 }
