@@ -19,7 +19,7 @@ import { WebSocketService } from '../../services/websocket.service';
         <!-- Body -->
         <div class="modal-body">
           <p class="desc">
-            Connect to an AWS API Gateway WebSocket endpoint or leave blank for local mode.
+            Connect to a real-time WebSocket endpoint to sync live rooms and questions.
           </p>
 
           <div class="field-group">

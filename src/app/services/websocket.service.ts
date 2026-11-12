@@ -41,7 +41,7 @@ export class WebSocketService {
     this.wsUrl.set(trimmed);
 
     if (trimmed.startsWith('wss://')) {
-      this.toastService.info('Connecting to AWS WebSocket...');
+      this.toastService.info('Connecting to real-time server...');
       this.connect(trimmed);
     } else {
       this.disconnect();
@@ -58,7 +58,7 @@ export class WebSocketService {
 
       this.socket.onopen = () => {
         this.status.set('connected');
-        this.toastService.success('Connected to AWS WebSocket.');
+        this.toastService.success('Connected to live discussion network.');
         // Request active rooms list on connection
         this.send('list_rooms', {});
       };
@@ -74,7 +74,7 @@ export class WebSocketService {
 
       this.socket.onclose = () => {
         if (this.status() === 'connected') {
-          this.toastService.error('WebSocket connection closed.');
+          this.toastService.error('Connection closed.');
         }
         this.status.set('disconnected');
         this.scheduleReconnect(url);
@@ -82,7 +82,7 @@ export class WebSocketService {
 
       this.socket.onerror = () => {
         this.status.set('disconnected');
-        this.toastService.error('Failed to reach WebSocket server.');
+        this.toastService.error('Failed to reach real-time server.');
         this.socket?.close();
       };
     } catch (err: any) {
@@ -99,7 +99,6 @@ export class WebSocketService {
     }
     if (this.socket) {
       this.socket.close();
-      this.socket = null;
     }
   }
 
@@ -115,9 +114,9 @@ export class WebSocketService {
       return true;
     } else {
       if (!this.wsUrl()) {
-        this.toastService.error('No AWS WebSocket URL configured. Click the Settings icon in the navbar to connect.');
+        this.toastService.error('Real-time server not configured. Please check connection settings.');
       } else {
-        this.toastService.error('Backend unreachable. Reconnecting to AWS...');
+        this.toastService.error('Server unreachable. Reconnecting in background...');
       }
       return false;
     }

@@ -2,7 +2,6 @@ import { Component, EventEmitter, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RoomStoreService } from '../../services/room-store.service';
-import { WebSocketService } from '../../services/websocket.service';
 import { Room } from '../../models/room.model';
 
 @Component({
@@ -138,20 +137,6 @@ import { Room } from '../../models/room.model';
           </div>
         </div>
 
-        <!-- Connection Notice Banner if disconnected -->
-        @if (!wsService.isConnected()) {
-          <div class="backend-notice-banner">
-            <div class="notice-left">
-              <span class="notice-badge">Backend Ready</span>
-              <span class="notice-text">
-                Connect your AWS API Gateway WebSocket URL to sync rooms live from DynamoDB.
-              </span>
-            </div>
-            <button type="button" class="btn-notice" (click)="openSettings.emit()">
-              Configure WebSocket
-            </button>
-          </div>
-        }
 
         <!-- Loading Skeletons -->
         @if (roomStore.isLoadingRooms()) {
@@ -191,15 +176,11 @@ import { Room } from '../../models/room.model';
                 </div>
               </div>
             } @empty {
-              <!-- Empty state when no rooms are returned from backend -->
+              <!-- Empty state when no rooms are found -->
               <div class="empty-rooms-box">
                 <p class="empty-rooms-title">No rooms found</p>
                 <p class="empty-rooms-desc">
-                  @if (wsService.isConnected()) {
-                    There are currently no active rooms on the server. Create the first room to get started!
-                  } @else {
-                    Configure your AWS WebSocket endpoint to fetch live rooms, or launch a new room space.
-                  }
+                  There are currently no active discussion rooms. Create one to get started!
                 </p>
                 <button type="button" class="btn-create-empty" (click)="openCreateModal.emit()">
                   + Create First Room
@@ -476,54 +457,6 @@ import { Room } from '../../models/room.model';
       }
     }
 
-    /* Notice Banner */
-    .backend-notice-banner {
-      background: var(--bg-surface);
-      border: 1px dashed var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 16px 20px;
-      margin-bottom: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    .notice-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .notice-badge {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--accent-black);
-      background: var(--bg-subtle);
-      padding: 3px 8px;
-      border-radius: var(--radius-full);
-    }
-
-    .notice-text {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .btn-notice {
-      padding: 6px 14px;
-      border-radius: var(--radius-full);
-      font-size: 12px;
-      font-weight: 600;
-      background: var(--accent-black);
-      color: white;
-
-      &:hover {
-        background: var(--accent-black-hover);
-      }
-    }
-
     .rooms-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -760,7 +693,6 @@ import { Room } from '../../models/room.model';
 })
 export class HomeViewComponent {
   roomStore = inject(RoomStoreService);
-  wsService = inject(WebSocketService);
 
   @Output() openCreateModal = new EventEmitter<void>();
   @Output() openSettings = new EventEmitter<void>();
