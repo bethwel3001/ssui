@@ -65,41 +65,53 @@ import { Room } from '../../models/room.model';
 
       <!-- 3-Step Instruction Section -->
       <section id="how-it-works" class="instructions-section">
-        <div class="section-header">
-          <h2 class="section-title">How it works</h2>
-          <p class="section-desc">Join any discussion in three straightforward steps</p>
+        <div class="instructions-content">
+          <div class="section-header">
+            <h2 class="section-title">How it works</h2>
+            <p class="section-desc">Join any discussion in three straightforward steps</p>
+          </div>
+
+          <div class="steps-grid">
+            <div class="step-card">
+              <div class="step-number">01</div>
+              <h3 class="step-title">Enter or Create Room</h3>
+              <p class="step-body">
+                Type the room code provided by your event organizer, or launch a fresh room for your team.
+              </p>
+            </div>
+
+            <div class="step-card">
+              <div class="step-number">02</div>
+              <h3 class="step-title">Check Q&A Status</h3>
+              <p class="step-body">
+                See whether the host has opened questions or paused submissions to focus on answering.
+              </p>
+            </div>
+
+            <div class="step-card">
+              <div class="step-number">03</div>
+              <h3 class="step-title">Ask & Upvote</h3>
+              <p class="step-body">
+                Submit your questions and give a SSUI! upvote to bring the most critical questions to the top.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div class="steps-grid">
-          <div class="step-card">
-            <div class="step-number">01</div>
-            <h3 class="step-title">Enter or Create Room</h3>
-            <p class="step-body">
-              Type the room code provided by your event organizer, or launch a fresh room for your team.
-            </p>
-          </div>
-
-          <div class="step-card">
-            <div class="step-number">02</div>
-            <h3 class="step-title">Check Q&A Status</h3>
-            <p class="step-body">
-              See whether the host has opened questions or paused submissions to focus on answering.
-            </p>
-          </div>
-
-          <div class="step-card">
-            <div class="step-number">03</div>
-            <h3 class="step-title">Ask & Upvote</h3>
-            <p class="step-body">
-              Submit your questions and give a SSUI! upvote to bring the most critical questions to the top.
-            </p>
-          </div>
-        </div>
+        <!-- Scroll Prompt to Explore Rooms -->
+        <a href="#explore-rooms" class="hero-scroll-prompt">
+          <span>Explore active rooms</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <polyline points="19 12 12 19 5 12"></polyline>
+          </svg>
+        </a>
       </section>
 
       <!-- Active Rooms Directory Section -->
       <section id="explore-rooms" class="rooms-section">
-        <div class="rooms-header-row">
+        <div class="rooms-content-wrap">
+          <div class="rooms-header-row">
           <div>
             <h2 class="section-title">Explore Active Rooms</h2>
             <p class="section-desc">Join an open room and start asking questions</p>
@@ -189,6 +201,7 @@ import { Room } from '../../models/room.model';
             }
           </div>
         }
+        </div>
       </section>
     </div>
   `,
@@ -354,74 +367,110 @@ import { Room } from '../../models/room.model';
       }
     }
 
-    /* Instructions Section */
+    /* Instructions Section - Full Viewport Long */
     .instructions-section {
-      padding: 80px 0 50px 0;
+      min-height: calc(100vh - 84px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 48px 0 24px 0;
+      position: relative;
+      scroll-margin-top: 84px;
+    }
+
+    .instructions-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      margin: auto 0;
     }
 
     .section-header {
-      margin-bottom: 32px;
+      text-align: center;
+      margin-bottom: 40px;
     }
 
     .section-title {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
+      font-size: clamp(28px, 4vw, 38px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
       color: var(--text-main);
     }
 
     .section-desc {
-      font-size: 14px;
+      font-size: clamp(15px, 2vw, 17px);
       color: var(--text-muted);
-      margin-top: 4px;
+      margin-top: 8px;
     }
 
     .steps-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 24px;
+      width: 100%;
+      margin-bottom: 24px;
     }
 
     .step-card {
       background-color: var(--bg-surface);
       border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 28px;
+      border-radius: var(--radius-xl);
+      padding: 32px 28px;
       box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-card);
+      }
     }
 
     .step-number {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 800;
       color: var(--accent-gold);
-      margin-bottom: 2px;
+      letter-spacing: 0.05em;
     }
 
     .step-title {
-      font-size: 17px;
+      font-size: 19px;
       font-weight: 700;
       color: var(--text-main);
+      letter-spacing: -0.02em;
     }
 
     .step-body {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text-muted);
-      line-height: 1.55;
+      line-height: 1.6;
     }
 
-    /* Rooms Directory */
+    /* Rooms Directory - Full Viewport Long */
     .rooms-section {
-      padding: 40px 0 20px 0;
+      min-height: calc(100vh - 84px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px 0 32px 0;
+      position: relative;
+      scroll-margin-top: 84px;
+    }
+
+    .rooms-content-wrap {
+      width: 100%;
+      margin: auto 0;
     }
 
     .rooms-header-row {
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      margin-bottom: 24px;
+      margin-bottom: 28px;
       flex-wrap: wrap;
       gap: 16px;
     }
@@ -660,7 +709,9 @@ import { Room } from '../../models/room.model';
       .home-container {
         padding: 0 16px 56px 16px;
       }
-      .hero-section {
+      .hero-section,
+      .instructions-section,
+      .rooms-section {
         min-height: calc(100vh - 76px);
       }
       .hero-ctas {
