@@ -1,0 +1,32 @@
+<div class="app-layout">
+  <!-- Classic Functional Navbar -->
+  <app-navbar 
+    (openCreateModal)="showCreateModal.set(true)" 
+    (openSettings)="showSettings.set(true)">
+  </app-navbar>
+
+  <!-- Dynamic Views (Landing vs Room) -->
+  <main class="app-main">
+    @if (roomStore.currentView() === 'home') {
+      <app-home-view (openCreateModal)="showCreateModal.set(true)"></app-home-view>
+    } @else {
+      <app-room-view (openAskModal)="showAskModal.set(true)"></app-room-view>
+    }
+  </main>
+
+  <!-- Modern Dark Footer with Big SSUI! Typography -->
+  <app-footer></app-footer>
+</div>
+
+<!-- Modals -->
+@if (showAskModal()) {
+  <app-ask-modal (close)="showAskModal.set(false)"></app-ask-modal>
+}
+
+@if (showCreateModal()) {
+  <app-create-room-modal (close)="showCreateModal.set(false)"></app-create-room-modal>
+}
+
+@if (showSettings()) {
+  <app-aws-settings-modal (close)="showSettings.set(false)"></app-aws-settings-modal>
+}
