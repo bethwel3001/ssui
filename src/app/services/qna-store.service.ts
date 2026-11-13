@@ -100,6 +100,11 @@ export class QnaStoreService {
 
   constructor() {
     this.wsService.messages$.subscribe(msg => this.handleMessage(msg));
+    this.networkSync.syncedQuestions$.subscribe(syncedIds => {
+      this.questions.update(questions =>
+        questions.map(q => syncedIds.includes(q.id) ? { ...q, syncStatus: 'synced' as const } : q)
+      );
+    });
   }
 
   private loadUpvotedSet(): Set<string> {
@@ -137,6 +142,7 @@ export class QnaStoreService {
       return;
     }
 
+    const isOnline = this.networkSync.isOnline();
     const newQuestion: Question = {
       id: 'q-' + Date.now().toString(36) + Math.random().toString(36).substring(2, 5),
       roomCode: currentRoom.code,
@@ -145,20 +151,27 @@ export class QnaStoreService {
       category,
       upvotes: 1,
       createdAt: Date.now(),
-      isAnswered: false
+      isAnswered: false,
+      syncStatus: isOnline ? 'synced' : 'pending'
     };
 
-    const result = await this.networkSync.submitQuestion(newQuestion);
-    if (result.success) {
-      const upvoted = new Set(this.userUpvotedIds());
-      upvoted.add(newQuestion.id);
-      this.userUpvotedIds.set(upvoted);
-      this.saveUpvotedSet(upvoted);
+    // 1. OPTIMISTIC UI UPDATE: Immediately append to local UI signal so user sees it instantly
+    this.questions.update(prev => [newQuestion, ...prev]);
 
-      this.questions.update(prev => [newQuestion, ...prev]);
-      if (!result.queued) {
-        this.toastService.success('Question submitted successfully.');
-      }
+    // Record author's initial upvote
+    const upvoted = new Set(this.userUpvotedIds());
+    upvoted.add(newQuestion.id);
+    this.userUpvotedIds.set(upvoted);
+    this.saveUpvotedSet(upvoted);
+
+    // 2. Check NetworkSyncService and dispatch / queue accordingly
+    const result = await this.networkSync.submitQuestion(newQuestion);
+    if (result.queued) {
+      this.questions.update(questions =>
+        questions.map(q => q.id === newQuestion.id ? { ...q, syncStatus: 'pending' as const } : q)
+      );
+    } else if (result.success) {
+      this.toastService.success('Question submitted successfully.');
     }
   }
 

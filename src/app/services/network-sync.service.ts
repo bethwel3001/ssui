@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, OnDestroy } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { OfflineStorageService } from './offline-storage.service';
 import { WebSocketService } from './websocket.service';
 import { ToastService } from './toast.service';
@@ -16,6 +16,9 @@ export class NetworkSyncService implements OnDestroy {
   private readonly initialStatus = typeof navigator !== 'undefined' ? navigator.onLine : true;
   readonly isOnline = signal<boolean>(this.initialStatus);
   readonly isOnline$ = new BehaviorSubject<boolean>(this.initialStatus);
+
+  // Emits IDs of offline questions that have been successfully replayed/synced
+  readonly syncedQuestions$ = new Subject<string[]>();
 
   // Sync state tracking
   readonly isSyncing = signal<boolean>(false);
@@ -118,6 +121,7 @@ export class NetworkSyncService implements OnDestroy {
       }
 
       let successCount = 0;
+      const syncedIds: string[] = [];
       const failedToReplay: any[] = [];
 
       // 3. Iterate through cached questions and dispatch to AWS WebSocket
@@ -132,6 +136,9 @@ export class NetworkSyncService implements OnDestroy {
 
         if (sent) {
           successCount++;
+          if (question.id) {
+            syncedIds.push(question.id);
+          }
         } else {
           // If socket disconnected mid-flight, collect remaining items to restore in IndexedDB
           failedToReplay.push(...offlineQuestions.slice(i));
@@ -149,8 +156,9 @@ export class NetworkSyncService implements OnDestroy {
         );
       }
 
-      // 5. Notify user of successful sync
+      // 5. Notify user and listeners of successful sync
       if (successCount > 0) {
+        this.syncedQuestions$.next(syncedIds);
         this.toastService.success(
           `Synced ${successCount} offline question${successCount > 1 ? 's' : ''} to live discussion room!`
         );

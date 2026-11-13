@@ -253,9 +253,21 @@ export class AskModalComponent {
   selectedCategory: Question['category'] = 'Engineering';
   categories: Question['category'][] = ['Engineering', 'Product', 'Design', 'General'];
 
+  /**
+   * Submits a new question with instant Optimistic UI:
+   * Immediately updates the local Signal list and closes the modal
+   * while routing to WebSocket (if online) or IndexedDB (if offline).
+   */
   submit() {
-    if (!this.content.trim()) return;
-    this.qnaStore.askQuestion(this.content, this.author, this.selectedCategory);
+    const trimmed = this.content.trim();
+    if (!trimmed) return;
+
+    // Trigger optimistic submission
+    this.qnaStore.askQuestion(trimmed, this.author, this.selectedCategory);
+
+    // Reset inputs and close modal instantly for 0ms perceptual latency
+    this.content = '';
+    this.author = '';
     this.close.emit();
   }
 }

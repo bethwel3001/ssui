@@ -8,6 +8,7 @@ export interface Question {
   createdAt: number;
   isAnswered: boolean;
   isPinned?: boolean;
+  syncStatus?: 'synced' | 'pending';
 }
 
 export interface PollOption {

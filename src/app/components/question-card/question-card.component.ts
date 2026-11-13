@@ -36,6 +36,12 @@ import { RoomStoreService } from '../../services/room-store.service';
             </div>
 
             <div class="badges-row">
+              @if (question.syncStatus === 'pending') {
+                <span class="sync-status-badge pending" title="Saved locally. Will sync once connection returns.">
+                  <span class="sync-spinner"></span>
+                  <span>Pending connection...</span>
+                </span>
+              }
               @if (question.isPinned) {
                 <span class="pinned-badge">Pinned</span>
               }
@@ -209,6 +215,43 @@ import { RoomStoreService } from '../../services/room-store.service';
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    .sync-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 9px;
+      border-radius: var(--radius-full);
+      letter-spacing: -0.01em;
+
+      &.pending {
+        background-color: #FEF3C7;
+        color: #92400E;
+        border: 1px solid #FDE68A;
+      }
+    }
+
+    .sync-spinner {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #D97706;
+      display: inline-block;
+      animation: pulseSync 1.4s infinite ease-in-out;
+    }
+
+    @keyframes pulseSync {
+      0%, 100% {
+        opacity: 0.35;
+        transform: scale(0.85);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.2);
+      }
     }
 
     .pinned-badge {
