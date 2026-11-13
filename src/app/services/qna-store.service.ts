@@ -3,6 +3,7 @@ import { Question, Poll, QuestionFilter, QuestionSort, WebSocketMessage } from '
 import { WebSocketService } from './websocket.service';
 import { RoomStoreService } from './room-store.service';
 import { ToastService } from './toast.service';
+import { NetworkSyncService } from './network-sync.service';
 
 @Injectable({
   providedIn: 'root'
@@ -11,6 +12,7 @@ export class QnaStoreService {
   private wsService = inject(WebSocketService);
   private roomStore = inject(RoomStoreService);
   private toastService = inject(ToastService);
+  private networkSync = inject(NetworkSyncService);
 
   // Real data signals (Zero hardcoded fake items)
   readonly questions = signal<Question[]>([]);
@@ -120,7 +122,7 @@ export class QnaStoreService {
     return localStorage.getItem(this.POLL_KEY);
   }
 
-  askQuestion(content: string, author: string, category: Question['category']) {
+  async askQuestion(content: string, author: string, category: Question['category']) {
     const trimmed = content.trim();
     if (!trimmed) return;
 
@@ -146,15 +148,17 @@ export class QnaStoreService {
       isAnswered: false
     };
 
-    const sent = this.wsService.send('send_question', newQuestion);
-    if (sent) {
+    const result = await this.networkSync.submitQuestion(newQuestion);
+    if (result.success) {
       const upvoted = new Set(this.userUpvotedIds());
       upvoted.add(newQuestion.id);
       this.userUpvotedIds.set(upvoted);
       this.saveUpvotedSet(upvoted);
 
       this.questions.update(prev => [newQuestion, ...prev]);
-      this.toastService.success('Question submitted successfully.');
+      if (!result.queued) {
+        this.toastService.success('Question submitted successfully.');
+      }
     }
   }
 
