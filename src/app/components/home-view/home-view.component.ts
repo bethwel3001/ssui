@@ -717,21 +717,47 @@ import { Room } from '../../models/room.model';
       .hero-ctas {
         flex-direction: column;
         width: 100%;
+        max-width: 320px;
+        margin: 0 auto;
+        gap: 10px;
       }
       .cta-join-box {
         width: 100%;
         justify-content: space-between;
+        padding: 3px 4px 3px 12px;
+      }
+      .hash-icon {
+        width: 13px;
+        height: 13px;
+        margin-right: 6px;
       }
       .cta-code-input {
         width: 100%;
         min-width: 0;
+        font-size: 12.5px;
+      }
+      .btn-join {
+        padding: 7px 14px;
+        font-size: 12px;
+        border-radius: var(--radius-full);
+      }
+      .or-separator {
+        display: block;
+        font-size: 11px;
+        color: var(--text-faint);
+        margin: -2px 0;
       }
       .btn-hero-create {
         width: 100%;
         justify-content: center;
-      }
-      .or-separator {
-        display: none;
+        padding: 9px 16px;
+        font-size: 12.5px;
+        gap: 6px;
+
+        svg {
+          width: 13px;
+          height: 13px;
+        }
       }
       .steps-grid {
         grid-template-columns: 1fr;
