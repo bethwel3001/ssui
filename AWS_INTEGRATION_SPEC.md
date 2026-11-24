@@ -15,6 +15,7 @@ This document is the integration guide and API contract for the backend team han
          │ Route Selection: $request.body.action
          ├──► $connect        ──► Lambda (Save connectionId to DynamoDB)
          ├──► $disconnect     ──► Lambda (Delete connectionId from DynamoDB)
+         ├──► create_room    ──► Lambda (Create room + privately return host token)
          ├──► send_question   ──► Lambda (Save question to DynamoDB + Broadcast)
          ├──► upvote_question ──► Lambda (Atomic ADD in DynamoDB + Broadcast)
          ├──► mark_answered   ──► Lambda (Update DynamoDB + Broadcast)
@@ -42,6 +43,11 @@ $request.body.action
 ## 📡 Message Payload Specifications
 
 All messages sent from the client or broadcasted by Lambda use JSON format with an `action` and `payload` envelope:
+
+### `create_room` (room creator)
+- **Client payload:** `{ "roomCode": "team-ama", "name": "Team AMA", "host": "Alex", "description": "" }`
+- The backend creates the room only if that code is unused, switches the creating connection into the room, and privately returns `room_created` with a high-entropy `hostToken`. The app stores it in the creator's browser and sends it with moderation actions. It is not included in sync responses or broadcasts.
+- Existing room codes cannot be claimed through this route.
 
 ### 1. `$connect`
 - **Triggered by:** API Gateway on client connection.
@@ -120,12 +126,13 @@ All messages sent from the client or broadcasted by Lambda use JSON format with 
     "action": "upvote_question",
     "payload": {
       "questionId": "q-xyz123",
-      "newCount": 24
+      "newCount": 24,
+      "voterId": "persistent-browser-generated-id"
     }
   }
   ```
 - **Lambda task:**
-  1. Update `ssui-questions` with `UpdateExpression: "ADD upvotes :val"`.
+  1. Atomically add the browser voter ID to the question's `voters` string set and increment `upvotes`, conditional on that ID not already being present.
   2. Broadcast `{ "action": "upvote_question", "payload": { "questionId": "q-xyz123", "newCount": 24 } }`.
 
 ### 6. `mark_answered`
@@ -171,6 +178,7 @@ All messages sent from the client or broadcasted by Lambda use JSON format with 
   - `createdAt` (Number)
   - `isAnswered` (Boolean)
   - `isPinned` (Boolean, optional)
+  - `voters` (String Set, internal; excluded from WebSocket payloads)
 
 ### Table 3: `ssui-polls`
 - **Partition Key:** `id` (String)
@@ -192,3 +200,7 @@ In the **ssui!** frontend:
 1. Click the status badge in the top navbar (`⚙️ Demo Simulator`).
 2. Select **Live AWS API Gateway WebSocket**.
 3. Paste the URL and click **Save & Reconnect**.
+
+## Host permissions and vote limits
+
+The backend denies moderation actions unless the request contains the room's `hostToken`. The token is returned only to the connection that successfully creates a new room. Existing room records without a token need a deliberate migration before moderation can be enabled. Vote deduplication uses a browser-generated ID; it prevents repeats from the same browser storage, but it is not a substitute for user authentication.
