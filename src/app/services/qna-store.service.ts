@@ -80,6 +80,47 @@ const INITIAL_QUESTIONS: Question[] = [
     upvotes: 15,
     createdAt: Date.now() - 1000 * 60 * 60,
     isAnswered: false
+  },
+  {
+    id: 'q-msme-1',
+    roomCode: 'msme-clinic',
+    author: 'Amina',
+    content: 'Which digital channel has helped you reach customers outside your neighbourhood?',
+    category: 'Product',
+    upvotes: 31,
+    createdAt: Date.now() - 1000 * 60 * 18,
+    isAnswered: false,
+    isPinned: true
+  },
+  {
+    id: 'q-msme-2',
+    roomCode: 'msme-clinic',
+    author: 'Peter',
+    content: 'What records do larger buyers expect from a small supplier before the first order?',
+    category: 'General',
+    upvotes: 24,
+    createdAt: Date.now() - 1000 * 60 * 28,
+    isAnswered: false
+  },
+  {
+    id: 'q-msme-3',
+    roomCode: 'msme-clinic',
+    author: 'Wanjiku',
+    content: 'How can a business test demand before spending on new equipment or packaging?',
+    category: 'Engineering',
+    upvotes: 17,
+    createdAt: Date.now() - 1000 * 60 * 36,
+    isAnswered: false
+  },
+  {
+    id: 'q-msme-4',
+    roomCode: 'msme-clinic',
+    author: 'Kevin',
+    content: 'Which short business skill would make the biggest difference to your next sale?',
+    category: 'General',
+    upvotes: 12,
+    createdAt: Date.now() - 1000 * 60 * 42,
+    isAnswered: true
   }
 ];
 
@@ -108,6 +149,18 @@ const INITIAL_POLLS: Poll[] = [
       { id: 'opt-p2', text: 'Live API endpoint', votes: 14 },
       { id: 'opt-p3', text: 'PDF summary report', votes: 8 }
     ]
+  },
+  {
+    id: 'poll-msme-clinic',
+    roomCode: 'msme-clinic',
+    question: 'What would help your business reach more customers next?',
+    isActive: true,
+    totalVotes: 38,
+    options: [
+      { id: 'opt-msme-1', text: 'Finding new buyers', votes: 16 },
+      { id: 'opt-msme-2', text: 'Digital marketing skills', votes: 12 },
+      { id: 'opt-msme-3', text: 'Meeting buyer standards', votes: 10 }
+    ]
   }
 ];
 
@@ -126,6 +179,7 @@ export class QnaStoreService {
 
   private readonly UPVOTED_KEY = 'ssui_upvoted_ids';
   private readonly POLL_KEY = 'ssui_poll_vote';
+  private readonly VOTER_KEY = 'ssui_voter_id';
   readonly userUpvotedIds = signal<Set<string>>(this.loadUpvotedSet());
   readonly userVotedOptionId = signal<string | null>(this.loadPollVote());
 
@@ -222,6 +276,18 @@ export class QnaStoreService {
     return localStorage.getItem(this.POLL_KEY);
   }
 
+  private getVoterId(): string {
+    if (typeof window === 'undefined') return 'server-side-voter-id';
+    let voterId = localStorage.getItem(this.VOTER_KEY);
+    if (!voterId) {
+      voterId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID().replace(/-/g, '')
+        : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(this.VOTER_KEY, voterId);
+    }
+    return voterId;
+  }
+
   private handleMessage(msg: WebSocketMessage) {
     switch (msg.action) {
       case 'send_question': {
@@ -250,8 +316,10 @@ export class QnaStoreService {
         break;
       }
       case 'vote_poll': {
-        const { optionId } = msg.payload || {};
-        if (optionId) {
+        const { optionId, poll } = msg.payload || {};
+        if (poll) {
+          this.polls.update(list => [poll, ...list.filter(p => p.id !== poll.id)]);
+        } else if (optionId) {
           this.polls.update(list =>
             list.map(p => {
               if (p.options.some(o => o.id === optionId)) {
@@ -269,8 +337,33 @@ export class QnaStoreService {
       }
       case 'sync_state': {
         if (msg.payload?.questions) {
-          this.questions.set(msg.payload.questions);
+          const roomCode = msg.payload.roomCode;
+          this.questions.update(current => roomCode
+            ? [...current.filter(q => q.roomCode !== roomCode), ...msg.payload.questions]
+            : msg.payload.questions);
         }
+        if (msg.payload?.roomCode) {
+          const { roomCode, poll, polls } = msg.payload;
+          this.polls.update(current => [
+            ...current.filter(p => p.roomCode !== roomCode),
+            ...(polls ?? (poll ? [poll] : [])),
+          ]);
+        }
+        break;
+      }
+      case 'create_poll': {
+        const poll = msg.payload?.poll;
+        if (poll) this.polls.update(list => [poll, ...list.filter(p => p.id !== poll.id)]);
+        break;
+      }
+      case 'pin_question': {
+        const { questionId, isPinned } = msg.payload || {};
+        if (questionId) this.questions.update(list => list.map(q => q.id === questionId ? { ...q, isPinned: !!isPinned } : q));
+        break;
+      }
+      case 'delete_question': {
+        const { questionId } = msg.payload || {};
+        if (questionId) this.questions.update(list => list.filter(q => q.id !== questionId));
         break;
       }
     }
@@ -305,21 +398,11 @@ export class QnaStoreService {
 
   upvote(questionId: string) {
     const upvoted = new Set(this.userUpvotedIds());
-    const hasVoted = upvoted.has(questionId);
-
-    let updatedQuestions: Question[] = [];
-
-    if (hasVoted) {
-      upvoted.delete(questionId);
-      updatedQuestions = this.questions().map(q =>
-        q.id === questionId ? { ...q, upvotes: Math.max(0, q.upvotes - 1) } : q
-      );
-    } else {
-      upvoted.add(questionId);
-      updatedQuestions = this.questions().map(q =>
-        q.id === questionId ? { ...q, upvotes: q.upvotes + 1 } : q
-      );
-    }
+    if (upvoted.has(questionId)) return;
+    upvoted.add(questionId);
+    const updatedQuestions = this.questions().map(q =>
+      q.id === questionId ? { ...q, upvotes: q.upvotes + 1 } : q
+    );
 
     this.userUpvotedIds.set(upvoted);
     this.saveUpvotedSet(upvoted);
@@ -328,7 +411,8 @@ export class QnaStoreService {
     const target = updatedQuestions.find(q => q.id === questionId);
     this.wsService.send('upvote_question', {
       questionId,
-      newCount: target?.upvotes ?? 0
+      newCount: target?.upvotes ?? 0,
+      voterId: this.getVoterId()
     });
   }
 
@@ -343,17 +427,24 @@ export class QnaStoreService {
         return q;
       })
     );
-    this.wsService.send('mark_answered', { questionId, isAnswered: newStatus });
+    this.wsService.send('mark_answered', { questionId, isAnswered: newStatus, hostToken: this.roomStore.hostTokenFor(this.roomStore.activeRoom()?.code) });
   }
 
   togglePinned(questionId: string) {
+    let isPinned = false;
     this.questions.update(prev =>
-      prev.map(q => q.id === questionId ? { ...q, isPinned: !q.isPinned } : q)
+      prev.map(q => {
+        if (q.id !== questionId) return q;
+        isPinned = !q.isPinned;
+        return { ...q, isPinned };
+      })
     );
+    this.wsService.send('pin_question', { questionId, isPinned, hostToken: this.roomStore.hostTokenFor(this.roomStore.activeRoom()?.code) });
   }
 
   deleteQuestion(questionId: string) {
     this.questions.update(prev => prev.filter(q => q.id !== questionId));
+    this.wsService.send('delete_question', { questionId, hostToken: this.roomStore.hostTokenFor(this.roomStore.activeRoom()?.code) });
   }
 
   votePoll(optionId: string) {

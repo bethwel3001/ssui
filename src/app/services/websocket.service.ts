@@ -8,6 +8,7 @@ import { ConnectionStatus, WebSocketMessage } from '../models/qna.model';
 export class WebSocketService {
   private socket: WebSocket | null = null;
   private reconnectTimer: any = null;
+  private pendingMessages: WebSocketMessage[] = [];
   private readonly STORAGE_KEY = 'ssui_ws_endpoint';
 
   // State signals
@@ -60,6 +61,8 @@ export class WebSocketService {
       this.socket.onopen = () => {
         this.status.set('connected');
         this.send('sync_state', {});
+        const pending = this.pendingMessages.splice(0);
+        pending.forEach(message => this.socket?.send(JSON.stringify(message)));
       };
 
       this.socket.onmessage = (event) => {
@@ -105,12 +108,18 @@ export class WebSocketService {
 
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(msg));
+    } else if (this.wsUrl().startsWith('wss://')) {
+      this.pendingMessages.push(msg);
     } else {
       // Echo locally for instant reactive updates
       setTimeout(() => {
         this.messageSubject.next(msg);
       }, 20);
     }
+  }
+
+  syncRoom(roomCode: string) {
+    this.send('sync_state', { roomCode });
   }
 
   private scheduleReconnect(url: string) {

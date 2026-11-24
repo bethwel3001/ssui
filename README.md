@@ -37,13 +37,16 @@ A real-time event Q&A and audience polling platform built with modern Angular an
 
 For the complete technical specification, DynamoDB table schemas, Lambda route handlers, and deployment templates for the backend team, see:
 
-👉 **[BACKEND_ARCHITECTURE.md](file:///home/bethwel/ssui!/BACKEND_ARCHITECTURE.md)** (or relative: `BACKEND_ARCHITECTURE.md`)
+👉 **[BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md)**
+
+The deployable AWS SAM stack and a repository-specific deployment guide are in [`Backend/`](Backend/GUIDE.md). Deploy with AWS SAM from that folder, then paste its `WebSocketURI` output into the app's settings modal.
 
 ### Overview of Backend Routes:
 | Route Key | Direction | Description |
 | :--- | :--- | :--- |
 | `$connect` | Client ➔ AWS | Handshake registering `connectionId` and `roomCode` in DynamoDB |
 | `$disconnect` | Client ➔ AWS | Deletes dropped `connectionId` from DynamoDB |
+| `create_room` | Client ⇄ AWS | Creates an unused room code and privately returns a host token |
 | `send_question` | Client ⇄ AWS | Validates room gate status, saves question, and broadcasts to room |
 | `upvote_question` | Client ⇄ AWS | Performs atomic increment on upvotes and broadcasts updated tally |
 | `toggle_qa` | Client ⇄ AWS | Host opens/pauses submissions and broadcasts state change to attendees |
@@ -57,7 +60,8 @@ For the complete technical specification, DynamoDB table schemas, Lambda route h
 
 ```
 ssui!/
-├── BACKEND_ARCHITECTURE.md   # Complete AWS backend & SAM deployment guide
+├── BACKEND_ARCHITECTURE.md   # AWS backend architecture and data contracts
+├── Backend/                  # Deployable AWS SAM stack and Lambda handler
 ├── AWS_INTEGRATION_SPEC.md   # Integration payloads & DynamoDB contracts
 ├── src/
 │   ├── app/

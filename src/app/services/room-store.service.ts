@@ -42,6 +42,16 @@ const INITIAL_ROOMS: Room[] = [
     activeCount: 35,
     createdAt: Date.now() - 1000 * 60 * 200,
     category: 'Community'
+  },
+  {
+    code: 'msme-clinic',
+    name: 'MSME Market Access Clinic',
+    description: 'A peer session on reaching customers, preparing for buyers, and building practical business skills.',
+    host: 'Clinic Facilitator',
+    isQaOpen: true,
+    activeCount: 24,
+    createdAt: Date.now() - 1000 * 60 * 45,
+    category: 'General'
   }
 ];
 
@@ -52,6 +62,8 @@ export class RoomStoreService {
   readonly rooms = signal<Room[]>(INITIAL_ROOMS);
   readonly activeRoom = signal<Room | null>(null);
   readonly isCreatorMode = signal<boolean>(false);
+  private readonly HOST_TOKENS_KEY = 'ssui_host_tokens';
+  private hostTokens: Record<string, string> = this.loadHostTokens();
 
   // Active view: 'home' | 'room'
   readonly currentView = computed<'home' | 'room'>(() => {
@@ -71,7 +83,36 @@ export class RoomStoreService {
           }
         }
       }
+      if (msg.action === 'sync_state' && msg.payload?.roomCode) {
+        const { roomCode, isQaOpen } = msg.payload;
+        this.rooms.update(list => list.map(r => r.code === roomCode ? { ...r, isQaOpen } : r));
+        if (this.activeRoom()?.code === roomCode) {
+          this.activeRoom.update(r => r ? { ...r, isQaOpen } : null);
+        }
+      }
+      if (msg.action === 'room_created' && msg.payload?.room?.code && msg.payload?.hostToken) {
+        const { room, hostToken } = msg.payload;
+        const createdRoom: Room = { ...room, activeCount: 1, category: 'General' };
+        this.hostTokens = { ...this.hostTokens, [room.code]: hostToken };
+        if (typeof window !== 'undefined') localStorage.setItem(this.HOST_TOKENS_KEY, JSON.stringify(this.hostTokens));
+        this.rooms.update(list => [createdRoom, ...list.filter(r => r.code !== room.code)]);
+        this.activeRoom.set(createdRoom);
+        this.isCreatorMode.set(true);
+      }
     });
+  }
+
+  private loadHostTokens(): Record<string, string> {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(localStorage.getItem(this.HOST_TOKENS_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  hostTokenFor(roomCode: string | undefined): string | undefined {
+    return roomCode ? this.hostTokens[roomCode] : undefined;
   }
 
   joinRoom(code: string): boolean {
@@ -81,7 +122,8 @@ export class RoomStoreService {
     const existing = this.rooms().find(r => r.code.toLowerCase() === clean);
     if (existing) {
       this.activeRoom.set(existing);
-      this.isCreatorMode.set(existing.host === 'Bethwel'); // Creator if matching demo user
+      this.isCreatorMode.set(!!this.hostTokenFor(clean));
+      this.wsService.syncRoom(clean);
       return true;
     } else {
       // Auto-create room if entering an unlisted code (like Slido / Mentimeter)
@@ -97,7 +139,8 @@ export class RoomStoreService {
       };
       this.rooms.update(prev => [newRoom, ...prev]);
       this.activeRoom.set(newRoom);
-      this.isCreatorMode.set(true);
+      this.isCreatorMode.set(false);
+      this.wsService.syncRoom(clean);
       return true;
     }
   }
@@ -121,7 +164,8 @@ export class RoomStoreService {
 
     this.rooms.update(prev => [newRoom, ...prev.filter(r => r.code !== newRoom.code)]);
     this.activeRoom.set(newRoom);
-    this.isCreatorMode.set(true); // Creator of this new room!
+    this.isCreatorMode.set(true);
+    this.wsService.send('create_room', { roomCode: cleanCode, name: newRoom.name, host: newRoom.host, description: newRoom.description });
     return newRoom;
   }
 
@@ -141,7 +185,7 @@ export class RoomStoreService {
       this.activeRoom.update(r => r ? { ...r, isQaOpen: nextState } : null);
     }
 
-    this.wsService.send('toggle_qa', { roomCode, isOpen: nextState });
+    this.wsService.send('toggle_qa', { roomCode, isOpen: nextState, hostToken: this.hostTokenFor(roomCode) });
   }
 
   toggleCreatorMode() {
